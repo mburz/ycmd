@@ -377,6 +377,14 @@ class Completer( metaclass = abc.ABCMeta ):
       subcommands.remove( 'StopServer' )
     except ValueError:
       pass
+
+    try:
+      # Used only by YCM to retrieve the source code for Java classes based
+      # based on jdt:// URIs
+      subcommands.remove( 'JavaClassFileContents' )
+    except ValueError:
+      pass
+
     return subcommands
 
 

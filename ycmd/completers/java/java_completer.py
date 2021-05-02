@@ -26,6 +26,10 @@ import threading
 from ycmd import responses, utils
 from ycmd.completers.language_server import language_server_protocol as lsp
 from ycmd.completers.language_server import language_server_completer
+from ycmd.completers.language_server.language_server_completer import (
+  REQUEST_TIMEOUT_COMMAND,
+  ResponseFailedException
+)
 from ycmd.utils import LOGGER
 
 NO_DOCUMENTATION_MESSAGE = 'No documentation available for current context'
@@ -340,6 +344,9 @@ class JavaCompleter( language_server_completer.LanguageServerCompleter ):
         lambda self, request_data, args: self._WipeWorkspace( request_data,
                                                               args )
       ),
+      'JavaClassFileContents': (
+        lambda self, request_data, args: self._JavaClassFileContents( request_data )
+      ),
     }
 
 
@@ -406,6 +413,22 @@ class JavaCompleter( language_server_completer.LanguageServerCompleter ):
         project_directory ) )
 
     self._RestartServer( request_data, project_directory = project_directory )
+
+
+  def _JavaClassFileContents( self, request_data ):
+    if not self.ServerIsReady():
+      raise RuntimeError( 'Server is initializing. Please wait.' )
+
+    request_id = self.GetConnection().NextRequestId()
+    try:
+      response = self.GetConnection().GetResponse(
+        request_id,
+        lsp.JavaClassFileContents( request_id, request_data ),
+        REQUEST_TIMEOUT_COMMAND )
+    except ResponseFailedException:
+      raise RuntimeError( 'Cannot get java source for class.' )
+
+    return response
 
 
   def _Reset( self ):

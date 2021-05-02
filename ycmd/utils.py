@@ -580,3 +580,7 @@ def UpdateDict( target, override ):
       target[ key ] = value
 
   return target
+
+
+def IsJdtUri( uri ):
+  return uri and uri.startswith('jdt://')

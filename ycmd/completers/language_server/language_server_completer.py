@@ -33,7 +33,7 @@ from watchdog.observers import Observer
 from ycmd import extra_conf_store, responses, utils
 from ycmd.completers.completer import Completer, CompletionsCache
 from ycmd.completers.completer_utils import GetFileContents, GetFileLines
-from ycmd.utils import LOGGER
+from ycmd.utils import LOGGER, IsJdtUri
 
 from ycmd.completers.language_server import language_server_protocol as lsp
 
@@ -2389,7 +2389,6 @@ class LanguageServerCompleter( Completer ):
 
     return _LocationListToGoTo( request_data, result )
 
-
   def GoToSymbol( self, request_data, args ):
     if not self.ServerIsReady():
       raise RuntimeError( 'Server is initializing. Please wait.' )
@@ -3013,19 +3012,26 @@ def _SymbolInfoListToGoTo( request_data, symbols ):
 
 def _PositionToLocationAndDescription( request_data, position ):
   """Convert a LSP position to a ycmd location."""
-  try:
-    filename = lsp.UriToFilePath( position[ 'uri' ] )
-    file_contents = GetFileLines( request_data, filename )
-  except lsp.InvalidUriException:
-    LOGGER.debug( 'Invalid URI, file contents not available in GoTo' )
-    filename = ''
-    file_contents = []
-  except IOError:
-    # It's possible to receive positions for files which no longer exist (due to
-    # race condition). UriToFilePath doesn't throw IOError, so we can assume
-    # that filename is already set.
-    LOGGER.exception( 'A file could not be found when determining a '
-                      'GoTo location' )
+  if not IsJdtUri( position[ 'uri' ] ):
+    try:
+      filename = lsp.UriToFilePath( position[ 'uri' ] )
+      file_contents = GetFileLines( request_data, filename )
+    except lsp.InvalidUriException:
+      LOGGER.debug( 'Invalid URI, file contents not available in GoTo' )
+      filename = ''
+      file_contents = []
+    except IOError:
+      # It's possible to receive positions for files which no longer exist (due to
+      # race condition). UriToFilePath doesn't throw IOError, so we can assume
+      # that filename is already set.
+      LOGGER.exception( 'A file could not be found when determining a '
+                        'GoTo location' )
+      file_contents = []
+  else:
+    # the location is not inside of a file, it is only available through
+    # a call to the method java/classFileContents with this URI provided
+    # as parameter
+    filename = position[ 'uri' ]
     file_contents = []
 
   return _BuildLocationAndDescription( filename,
@@ -3104,6 +3110,7 @@ def _BuildRange( contents, filename, r ):
 
 def _BuildDiagnostic( contents, uri, diag ):
   """Return a ycmd diagnostic from a LSP diagnostic."""
+  #FIXME how to handle a Jdt uri?
   try:
     filename = lsp.UriToFilePath( uri )
   except lsp.InvalidUriException:

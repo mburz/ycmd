@@ -25,7 +25,8 @@ from urllib.request import pathname2url, url2pathname
 from ycmd.utils import ( ByteOffsetToCodepointOffset,
                          ToBytes,
                          ToUnicode,
-                         UpdateDict )
+                         UpdateDict,
+                         IsJdtUri )
 
 
 Error = collections.namedtuple( 'RequestError', [ 'code', 'reason' ] )
@@ -446,6 +447,7 @@ def DidCloseTextDocument( file_state ):
 def Completion( request_id, request_data, codepoint ):
   return BuildRequest( request_id, 'textDocument/completion', {
     'textDocument': {
+      #FIXME can this handle Jdt uri? Is it worth it?
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
     'position': Position( request_data[ 'line_num' ],
@@ -475,7 +477,6 @@ def Definition( request_id, request_data ):
                        'textDocument/definition',
                        BuildTextDocumentPositionParams( request_data ) )
 
-
 def Declaration( request_id, request_data ):
   return BuildRequest( request_id,
                        'textDocument/declaration',
@@ -498,6 +499,7 @@ def Implementation( request_id, request_data ):
 def CodeAction( request_id, request_data, best_match_range, diagnostics ):
   return BuildRequest( request_id, 'textDocument/codeAction', {
     'textDocument': {
+      #FIXME ignore Jdt uri
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
     'range': best_match_range,
@@ -510,6 +512,7 @@ def CodeAction( request_id, request_data, best_match_range, diagnostics ):
 def Rename( request_id, request_data, new_name ):
   return BuildRequest( request_id, 'textDocument/rename', {
     'textDocument': {
+      #FIXME ignore Jdt uri
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
     'newName': new_name,
@@ -528,6 +531,7 @@ def WorkspaceSymbol( request_id, query ):
 def DocumentSymbol( request_id, request_data ):
   return BuildRequest( request_id, 'textDocument/documentSymbol', {
     'textDocument': {
+      #FIXME can this handle Jdt uri? Is it worth it?
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
   } )
@@ -536,6 +540,7 @@ def DocumentSymbol( request_id, request_data ):
 def BuildTextDocumentPositionParams( request_data ):
   return {
     'textDocument': {
+      #FIXME can this handle Jdt uri? Is it worth it?
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
     'position': Position( request_data[ 'line_num' ],
@@ -561,6 +566,7 @@ def Position( line_num, line_value, column_codepoint ):
 def Formatting( request_id, request_data ):
   return BuildRequest( request_id, 'textDocument/formatting', {
     'textDocument': {
+      #FIXME disable for Jdt uri
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
     'options': FormattingOptions( request_data )
@@ -570,6 +576,7 @@ def Formatting( request_id, request_data ):
 def RangeFormatting( request_id, request_data ):
   return BuildRequest( request_id, 'textDocument/rangeFormatting', {
     'textDocument': {
+      #FIXME disable for Jdt uri
       'uri': FilePathToUri( request_data[ 'filepath' ] ),
     },
     'range': Range( request_data ),
@@ -635,12 +642,21 @@ def ExecuteCommand( request_id, command, arguments ):
   } )
 
 
+def JavaClassFileContents( request_id, request_data ):
+  return BuildRequest( request_id, 'java/classFileContents', {
+    'uri': request_data[ 'filepath' ]
+  } )
+
+
 def FilePathToUri( file_name ):
-  return urljoin( 'file:', pathname2url( file_name ) )
+  return ( urljoin( 'file:', pathname2url( file_name ) )
+           if not IsJdtUri( file_name ) else file_name )
 
 
 def UriToFilePath( uri ):
   parsed_uri = urlparse( uri )
+  if parsed_uri.scheme == 'jdt':
+    return uri
   if parsed_uri.scheme != 'file':
     raise InvalidUriException( uri )
 

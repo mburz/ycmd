@@ -16,7 +16,7 @@
 # along with ycmd.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-from ycmd.utils import ProcessIsRunning
+from ycmd.utils import ProcessIsRunning, IsJdtUri
 
 
 YCM_EXTRA_CONF_FILENAME = '.ycm_extra_conf.py'
@@ -154,11 +154,16 @@ def BuildSignatureHelpResponse( signature_info, errors = None ):
 
 # location.column_number_ is a byte offset
 def BuildLocationData( location ):
+  if location.filename_:
+    filepath = ( os.path.normpath( location.filename_ )
+                 if not IsJdtUri( location.filename_ ) else location.filename_ )
+  else:
+    filepath = ''
+
   return {
-    'line_num': location.line_number_,
+    'line_num':   location.line_number_,
     'column_num': location.column_number_,
-    'filepath': ( os.path.normpath( location.filename_ )
-                  if location.filename_ else '' ),
+    'filepath':   filepath,
   }
 
 
@@ -242,7 +247,8 @@ class Location:
     self.line_number_ = line
     self.column_number_ = column
     if filename:
-      self.filename_ = os.path.abspath( filename )
+      self.filename_ = ( os.path.realpath( filename )
+                         if not IsJdtUri( filename ) else filename )
     else:
       # When the filename passed (e.g. by a server) can't be recognized or
       # parsed, we send an empty filename. This at least allows the client to
